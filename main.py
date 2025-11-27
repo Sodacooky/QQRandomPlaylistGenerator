@@ -2,16 +2,15 @@ import asyncio
 import io
 import os.path
 import random
-import time
-from pprint import pprint
 
 import PIL.Image
 import qrcode.main
 from pyzbar import pyzbar
 from qqmusic_api import Credential
-from qqmusic_api.login import QR, QRLoginType, get_qrcode, check_qrcode, QRCodeLoginEvents
-from qqmusic_api.songlist import create, add_songs
-from qqmusic_api.user import get_euin, get_fav_song
+from qqmusic_api.login import QR, QRLoginType, get_qrcode, check_qrcode, QRCodeLoginEvents, check_expired, \
+    refresh_cookies
+from qqmusic_api.songlist import create, get_songlist, del_songs, add_songs
+from qqmusic_api.user import get_euin, get_fav_song, get_created_songlist
 
 
 async def get_and_print_login_qr(login_type: QRLoginType) -> QR:
@@ -84,6 +83,25 @@ async def get_fav_song_info(euid: str, credential: Credential, song_index: int):
     return fav_song["songlist"][0]
 
 
+async def find_exist_random_playlist(credential: Credential) -> dict | None:
+    """
+    查找先前生成的"_RandomPlaylist_"歌单
+    :param credential:
+    :return: 如果找到了，返回其歌单信息；否则返回None
+    """
+
+    # 返回的列表包含"喜欢"
+    all_playlists = await get_created_songlist(str(credential.musicid), credential=credential)
+
+    # 遍历比较其中的"dirName"
+    for playlist in all_playlists:
+        if playlist["dirName"] == "_RandomPlaylist_":
+            return playlist
+
+    # 找不到，返回-1
+    return None
+
+
 async def test():
     credential = None
 
@@ -91,7 +109,7 @@ async def test():
         with open("credentials.json", "r") as f:
             credential = Credential.from_cookies_str(f.read())
 
-    if credential is None:
+    if credential is None or await check_expired(credential):
         credential = await do_api_qr_login(QRLoginType.QQ)
         if credential is None:
             exit(-1)
@@ -99,19 +117,26 @@ async def test():
     euid = await get_euin(credential.musicid)
     print(f"euid: {euid}")
 
-    song_list_info = await create(f"_RPG_{time.strftime('%Y%m%d_%H%M%S')}", credential=credential)
-    pprint(song_list_info)
+    playlist = await find_exist_random_playlist(credential)
+    if playlist is None:
+        playlist = await create("_RandomPlaylist_", credential=credential)
 
-    total_fav_count = await get_fav_song_count(euid, credential)
+    old_content = await get_songlist(playlist["tid"], playlist["dirId"])
+    old_ids = []
+    for song in old_content:
+        old_ids.append(song["id"])
 
-    random_ids = []
-    for index in random.choices(range(1, total_fav_count + 1), k=30):
-        song_info = await get_fav_song_info(euid, credential, index)
-        print(f"{index}:\t {song_info['id']}\t {song_info['name']} - {song_info['album']['name']}")
-        random_ids.append(song_info["id"])
+    await del_songs(playlist["dirId"], old_ids, credential=credential)
 
-    await add_songs(song_list_info["dirId"], random_ids, credential=credential)
+    total_fav = await get_fav_song_count(euid, credential=credential)
+    new_ids = []
+    for index in random.choices(range(1, total_fav + 1), k=50):
+        fav_song_info = await get_fav_song_info(euid, credential, index)
+        new_ids.append(fav_song_info["id"])
 
+    await add_songs(playlist["dirId"], new_ids, credential=credential)
+
+    await refresh_cookies(credential)
     with open("credentials.json", "w") as f:
         f.write(credential.as_json())
 
