@@ -7,8 +7,9 @@ from random_songlist import RandomSonglist
 
 
 def test():
+    # 加载凭证文件，并刷新
     login_manager = LoginManager()
-    if not login_manager.load_credential_file():
+    if not login_manager.load_credential_file() or not login_manager.refresh():
         login_manager.do_qr_login(QRLoginType.QQ)
         login_manager.save_credential_file()
     print(f"已登录EUID: {login_manager.get_euid()}")

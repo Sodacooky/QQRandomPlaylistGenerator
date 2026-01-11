@@ -4,7 +4,7 @@ import os
 from time import sleep
 
 from qqmusic_api import Credential
-from qqmusic_api.login import QRLoginType, get_qrcode, QR, check_expired, refresh_cookies, check_qrcode, \
+from qqmusic_api.login import QRLoginType, get_qrcode, QR, refresh_cookies, check_qrcode, \
     QRCodeLoginEvents
 from qqmusic_api.user import get_euin
 
@@ -57,18 +57,31 @@ class LoginManager:
 
     def get_credential(self) -> Credential | None:
         """
-        :return: 当前登陆的凭证Credential，或者未登陆返回None
+        :return: 当前登陆的凭证Credential，或者未加载凭证文件时返回None
         """
         return self.__credential
 
-    def get_euid(self) -> str:
+    def get_euid(self) -> str | None:
         """
         通过credential中的musicid获取euid
-        :return: 用户euid
+        :return: 用户euid，或者未加载凭证文件时返回None
         """
+        if self.__credential is None:
+            return None
         if self.__euid_cached is None:
             self.__euid_cached = asyncio.run(get_euin(self.__credential.musicid))
         return self.__euid_cached
+
+    def refresh(self) -> bool:
+        """
+        刷新登陆凭证。
+        应该可以在登陆失效时通过credential中的refresh_key和refresh_token更新为有效登陆凭证。
+        :return: 是否刷新成功，也可以用作凭证文件是否有效的依据
+        """
+        if self.__credential is None:
+            raise RuntimeError("尝试在未加载Credential文件时进行refresh操作")
+        print("正在refresh登陆凭证文件")
+        return asyncio.run(refresh_cookies(self.__credential))
 
     def save_credential_file(self, credential_file_path: str = None):
         """
@@ -82,40 +95,27 @@ class LoginManager:
 
     def load_credential_file(self, credential_file_path: str = None) -> bool:
         """
-        加载凭证文件尝试登陆
+        加载凭证文件
         :param credential_file_path: 凭证文件路径，如果传入None则尝试使用运行路径下的credential.json
-        :return: 是否使用加载的凭证文件登陆成功
+        :return: 是否成功加载的凭证文件
         """
+        # 当没有指定凭证文件路径时，从默认路径读取
+        if credential_file_path is None:
+            credential_file_path = self.__CREDENTIAL_FILENAME
 
-        # 尝试读取指定的credential.json文件
-        if credential_file_path is not None and os.path.exists(credential_file_path):
+        # 尝试读取credential.json文件
+        if os.path.exists(credential_file_path):
             with open(credential_file_path, "r") as credential_file:
-                self.__credential = Credential.from_cookies_str(credential_file.read())
-        # 尝试读取运行目录下的credential.json文件
-        elif os.path.exists(self.__CREDENTIAL_FILENAME):
-            with open(self.__CREDENTIAL_FILENAME, "r") as credential_file:
                 try:
                     self.__credential = Credential.from_cookies_str(credential_file.read())
+                    print(f"已读取凭证文件{os.path.abspath(credential_file_path)}")
+                    return True
                 except Exception as e:
-                    print("加载凭证文件失败，忽略")
-        # 无法读取到保存的凭证，为未登录状态
+                    print("加载凭证文件失败：", e)
+                    return False
         else:
-            self.__credential = None
-
-        # 验证凭证是否有效，如果无效也需要重新登陆
-        if self.__credential is not None:
-            if asyncio.run(check_expired(self.__credential)):
-                # 凭证无效，恢复为未登录状态
-                self.__credential = None
-                print("提供的凭证已过期或无效")
-                return False
-            else:
-                # 凭证有效，刷新
-                asyncio.run(refresh_cookies(self.__credential))
-                print("成功使用提供的凭证文件登陆")
-                return True
-        # 没有凭证，未登录
-        return False
+            print(f"路径 {os.path.abspath(credential_file_path)} 不存在")
+            return False
 
     @staticmethod
     def __get_and_print_login_qr(login_type: QRLoginType) -> QR:

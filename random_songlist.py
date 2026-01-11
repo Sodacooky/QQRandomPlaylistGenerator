@@ -1,4 +1,5 @@
 import asyncio
+import random
 
 from qqmusic_api.songlist import create, get_songlist, del_songs, add_songs
 from qqmusic_api.user import get_created_songlist
@@ -35,7 +36,7 @@ class RandomSonglist:
         """
         credential = self.__login_manager.get_credential()
         # 检查歌单是否有效
-        if self.tid != -1 or self.dirId != -1:
+        if self.tid == -1 or self.dirId == -1:
             raise RuntimeError("无法获取或创建随机歌单")
 
         # 获取歌单原有歌曲，进行删除
@@ -43,9 +44,8 @@ class RandomSonglist:
         if len(old_song_ids) > 0:
             asyncio.run(del_songs(self.dirId, old_song_ids, credential=credential))
 
-        # 对ID列表再次进行打乱，避免顺序与时间顺序相关
-        # random.shuffle(song_ids)
-        # 这应该是不必要的
+        # 对ID列表再次进行打乱，虽然在随机生成时通过random.sample方法应该能保证顺序无关，但我们依旧能更进一步
+        random.shuffle(song_ids)
 
         # 添加到歌单
         asyncio.run(add_songs(self.dirId, song_ids, credential=credential))
