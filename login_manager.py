@@ -80,8 +80,14 @@ class LoginManager:
         """
         if self.__credential is None:
             raise RuntimeError("尝试在未加载Credential文件时进行refresh操作")
-        print("正在refresh登陆凭证文件")
-        return asyncio.run(refresh_cookies(self.__credential))
+        # 刷新
+        refresh_result: bool = asyncio.run(refresh_cookies(self.__credential))
+        if refresh_result:
+            print("已刷新凭证文件")
+        else:
+            print("刷新凭证文件失败，凭证文件已过期")
+            self.__credential = None
+        return refresh_result
 
     def save_credential_file(self, credential_file_path: str = None):
         """

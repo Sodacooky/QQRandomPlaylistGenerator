@@ -11,7 +11,6 @@ def test():
     login_manager = LoginManager()
     if not login_manager.load_credential_file() or not login_manager.refresh():
         login_manager.do_qr_login(QRLoginType.QQ)
-        login_manager.save_credential_file()
     print(f"已登录EUID: {login_manager.get_euid()}")
 
     random_picker = RandomPicker(login_manager, RandomHistory())
@@ -20,6 +19,9 @@ def test():
     random_songlist = RandomSonglist(login_manager)
     random_songlist.update(random_ids)
     print("更新完成")
+
+    # 将刷新后的凭证文件写出
+    login_manager.save_credential_file()
 
 
 if __name__ == "__main__":
