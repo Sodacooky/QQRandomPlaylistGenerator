@@ -18,8 +18,7 @@ class RandomPicker:
 
     def pick(self, count: int) -> list[int]:
         """
-        在排除了历史已随机歌曲的情况下，从“喜欢”歌曲中随机抽取若干，
-        抽取完成后本地抽取结果会储存到历史中。
+        在排除了历史已随机歌曲的情况下，从“喜欢”歌曲中随机抽取若干。
 
         当要抽取的数量大于剩余歌曲数量时，会清空历史随机记录。
 
@@ -39,9 +38,8 @@ class RandomPicker:
             available_set = all_set
             print("排除历史已随机歌曲后剩余歌曲数量不足，已重置历史")
 
-        # 抽取并记录
+        # 抽取
         picked = random.sample(list(available_set), count)
-        self.__random_history.add_history(picked)
         # 返回
         return picked
 

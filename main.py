@@ -13,12 +13,16 @@ def test():
         login_manager.do_qr_login(QRLoginType.QQ)
     print(f"已登录EUID: {login_manager.get_euid()}")
 
-    random_picker = RandomPicker(login_manager, RandomHistory())
+    random_history = RandomHistory()
+    random_picker = RandomPicker(login_manager, random_history)
     random_ids = random_picker.pick(100)
 
     random_songlist = RandomSonglist(login_manager)
     random_songlist.update(random_ids)
     print("更新完成")
+
+    random_history.add_history(random_ids)
+    print("已储存本次随机记录")
 
     # 将刷新后的凭证文件写出
     login_manager.save_credential_file()
